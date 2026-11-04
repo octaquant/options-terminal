@@ -1,0 +1,233 @@
+//@version=6
+indicator("OCTAQUANT X-RAY PRO v1.0", shorttitle="OQ X-RAY PRO", overlay=true, max_labels_count=300, max_lines_count=100)
+
+// ═════════════════════════════════════════════════════════════════════════════
+// OCTAQUANT X-RAY PRO — price-action + volume + VWAP + HTF confirmation.
+// Designed around: S/R breakout, S/R rejection, trendline breakout.
+// IMPORTANT: Pine does not expose full exchange bid/ask footprint or hidden
+// order-book liquidity. The pressure/CVD display below is a candle-volume proxy.
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── Inputs
+groupSetup = "01 · Setup engine"
+enableSRBreak = input.bool(true, "S/R breakout", group=groupSetup)
+enableSRReject = input.bool(true, "S/R rejection", group=groupSetup)
+enableTLBreak = input.bool(true, "Trendline breakout", group=groupSetup)
+pivotLen = input.int(5, "Swing pivot strength", minval=2, maxval=20, group=groupSetup)
+minScore = input.int(75, "Minimum confluence score", minval=50, maxval=100, step=5, group=groupSetup)
+cooldownBars = input.int(6, "Signal cooldown bars", minval=1, maxval=50, group=groupSetup)
+
+groupTrend = "02 · Trend & regime"
+confirmTf = input.timeframe("15", "Higher timeframe confirmation", group=groupTrend)
+emaFastLen = input.int(20, "Fast EMA", minval=2, group=groupTrend)
+emaMidLen = input.int(50, "Trend EMA", minval=5, group=groupTrend)
+emaSlowLen = input.int(200, "Major EMA", minval=20, group=groupTrend)
+adxLen = input.int(14, "ADX length", minval=2, group=groupTrend)
+adxSmooth = input.int(14, "ADX smoothing", minval=2, group=groupTrend)
+minAdx = input.float(16.0, "Minimum ADX for trend setups", minval=5, step=0.5, group=groupTrend)
+
+groupVolume = "03 · Volume & pressure"
+volLen = input.int(20, "Relative volume average", minval=2, group=groupVolume)
+minRelVol = input.float(1.15, "Minimum relative volume", minval=0.5, step=0.05, group=groupVolume)
+showPressure = input.bool(true, "Show candle-volume pressure proxy", group=groupVolume)
+
+groupRisk = "04 · Risk model"
+atrLen = input.int(14, "ATR length", minval=2, group=groupRisk)
+slAtr = input.float(1.2, "Stop distance · ATR multiple", minval=0.3, step=0.1, group=groupRisk)
+targetR1 = input.float(1.5, "Target 1 · R multiple", minval=0.5, step=0.25, group=groupRisk)
+targetR2 = input.float(2.0, "Target 2 · R multiple", minval=1.0, step=0.25, group=groupRisk)
+maxAtrPct = input.float(1.2, "Skip if ATR % exceeds", minval=0.1, step=0.1, group=groupRisk)
+
+groupVisual = "05 · Display"
+showEMAs = input.bool(true, "Show EMAs", group=groupVisual)
+showVWAP = input.bool(true, "Show session VWAP", group=groupVisual)
+showSR = input.bool(true, "Show latest swing S/R", group=groupVisual)
+showDashboard = input.bool(true, "Show X-RAY dashboard", group=groupVisual)
+showTradeLevels = input.bool(true, "Show latest entry / SL / targets", group=groupVisual)
+
+// ── Core indicators
+emaFast = ta.ema(close, emaFastLen)
+emaMid = ta.ema(close, emaMidLen)
+emaSlow = ta.ema(close, emaSlowLen)
+vwapSession = ta.vwap(hlc3)
+atr = ta.atr(atrLen)
+atrPct = close != 0 ? atr / close * 100.0 : na
+volAvg = ta.sma(volume, volLen)
+relVol = volAvg > 0 ? volume / volAvg : na
+[diPlus, diMinus, adx] = ta.dmi(adxLen, adxSmooth)
+
+htfClose = request.security(syminfo.tickerid, confirmTf, close, barmerge.gaps_off, barmerge.lookahead_off)
+htfEmaFast = request.security(syminfo.tickerid, confirmTf, ta.ema(close, emaFastLen), barmerge.gaps_off, barmerge.lookahead_off)
+htfEmaMid = request.security(syminfo.tickerid, confirmTf, ta.ema(close, emaMidLen), barmerge.gaps_off, barmerge.lookahead_off)
+htfBull = htfClose > htfEmaFast and htfEmaFast > htfEmaMid
+htfBear = htfClose < htfEmaFast and htfEmaFast < htfEmaMid
+
+localBull = close > emaFast and emaFast > emaMid
+localBear = close < emaFast and emaFast < emaMid
+majorBull = close > emaSlow
+majorBear = close < emaSlow
+vwapBull = close > vwapSession
+vwapBear = close < vwapSession
+trendBull = localBull and (majorBull or htfBull)
+trendBear = localBear and (majorBear or htfBear)
+
+// ── Confirmed swing levels (non-repainting after pivot confirmation)
+pivotHigh = ta.pivothigh(high, pivotLen, pivotLen)
+pivotLow = ta.pivotlow(low, pivotLen, pivotLen)
+resistance = ta.valuewhen(not na(pivotHigh), pivotHigh, 0)
+support = ta.valuewhen(not na(pivotLow), pivotLow, 0)
+
+// Two latest confirmed pivots for simple extrapolated trendlines
+ph0 = ta.valuewhen(not na(pivotHigh), pivotHigh, 0)
+ph1 = ta.valuewhen(not na(pivotHigh), pivotHigh, 1)
+phBar0 = ta.valuewhen(not na(pivotHigh), bar_index - pivotLen, 0)
+phBar1 = ta.valuewhen(not na(pivotHigh), bar_index - pivotLen, 1)
+pl0 = ta.valuewhen(not na(pivotLow), pivotLow, 0)
+pl1 = ta.valuewhen(not na(pivotLow), pivotLow, 1)
+plBar0 = ta.valuewhen(not na(pivotLow), bar_index - pivotLen, 0)
+plBar1 = ta.valuewhen(not na(pivotLow), bar_index - pivotLen, 1)
+
+descSlope = not na(phBar0) and not na(phBar1) and phBar0 != phBar1 ? (ph0 - ph1) / (phBar0 - phBar1) : na
+ascSlope = not na(plBar0) and not na(plBar1) and plBar0 != plBar1 ? (pl0 - pl1) / (plBar0 - plBar1) : na
+descLineNow = not na(descSlope) ? ph0 + descSlope * (bar_index - phBar0) : na
+descLinePrev = not na(descSlope) ? ph0 + descSlope * (bar_index - 1 - phBar0) : na
+ascLineNow = not na(ascSlope) ? pl0 + ascSlope * (bar_index - plBar0) : na
+ascLinePrev = not na(ascSlope) ? pl0 + ascSlope * (bar_index - 1 - plBar0) : na
+
+// ── Candle quality and pressure proxy
+barRange = math.max(high - low, syminfo.mintick)
+bodyPct = math.abs(close - open) / barRange * 100.0
+closeLocation = (close - low) / barRange
+bullCandleQuality = close > open and closeLocation >= 0.70 and bodyPct >= 45
+bearCandleQuality = close < open and closeLocation <= 0.30 and bodyPct >= 45
+signedVolume = close > open ? volume : close < open ? -volume : 0.0
+var float sessionPressure = 0.0
+newDay = ta.change(time("D")) != 0
+if barstate.isfirst or newDay
+    sessionPressure := signedVolume
+else
+    sessionPressure += signedVolume
+pressureUp = sessionPressure > sessionPressure[1]
+pressureDown = sessionPressure < sessionPressure[1]
+
+// ── Setups
+srBullBreak = enableSRBreak and not na(resistance) and close > resistance and close[1] <= resistance and bullCandleQuality
+srBearBreak = enableSRBreak and not na(support) and close < support and close[1] >= support and bearCandleQuality
+srBullReject = enableSRReject and not na(support) and low <= support and close > support and bullCandleQuality
+srBearReject = enableSRReject and not na(resistance) and high >= resistance and close < resistance and bearCandleQuality
+tlBullBreak = enableTLBreak and not na(descLineNow) and descSlope < 0 and close > descLineNow and close[1] <= descLinePrev and bullCandleQuality
+tlBearBreak = enableTLBreak and not na(ascLineNow) and ascSlope > 0 and close < ascLineNow and close[1] >= ascLinePrev and bearCandleQuality
+
+// ── Confluence scoring: transparent points, not win probability
+bullScore = 0
+bullScore += (srBullBreak or srBullReject or tlBullBreak) ? 25 : 0
+bullScore += htfBull ? 15 : 0
+bullScore += localBull ? 10 : 0
+bullScore += vwapBull ? 10 : 0
+bullScore += (not na(relVol) and relVol >= minRelVol) ? 15 : 0
+bullScore += (adx >= minAdx and diPlus > diMinus) ? 10 : 0
+bullScore += (pressureUp and close > open) ? 10 : 0
+bullScore += (majorBull) ? 5 : 0
+
+bearScore = 0
+bearScore += (srBearBreak or srBearReject or tlBearBreak) ? 25 : 0
+bearScore += htfBear ? 15 : 0
+bearScore += localBear ? 10 : 0
+bearScore += vwapBear ? 10 : 0
+bearScore += (not na(relVol) and relVol >= minRelVol) ? 15 : 0
+bearScore += (adx >= minAdx and diMinus > diPlus) ? 10 : 0
+bearScore += (pressureDown and close < open) ? 10 : 0
+bearScore += (majorBear) ? 5 : 0
+
+volOK = not na(relVol) and relVol >= minRelVol
+volatilityOK = not na(atrPct) and atrPct <= maxAtrPct
+marketOpenEnough = not na(vwapSession)
+bullTrigger = srBullBreak or srBullReject or tlBullBreak
+bearTrigger = srBearBreak or srBearReject or tlBearBreak
+bullRaw = bullTrigger and bullScore >= minScore and volOK and volatilityOK and marketOpenEnough
+bearRaw = bearTrigger and bearScore >= minScore and volOK and volatilityOK and marketOpenEnough
+
+var int lastSignalBar = na
+cooldownOK = na(lastSignalBar) or bar_index - lastSignalBar > cooldownBars
+// Confirm only on closed bars; avoid intrabar flicker/repainting signals.
+bullSignal = bullRaw and cooldownOK and barstate.isconfirmed
+bearSignal = bearRaw and cooldownOK and barstate.isconfirmed
+if bullSignal or bearSignal
+    lastSignalBar := bar_index
+
+// ── Trade levels based on underlying chart ATR. For option-premium charts,
+// these levels are premium levels; for index charts, these are index points.
+var float entryLevel = na
+var float stopLevel = na
+var float target1Level = na
+var float target2Level = na
+var int tradeSide = 0
+if bullSignal
+    entryLevel := close
+    stopLevel := close - atr * slAtr
+    target1Level := close + atr * slAtr * targetR1
+    target2Level := close + atr * slAtr * targetR2
+    tradeSide := 1
+if bearSignal
+    entryLevel := close
+    stopLevel := close + atr * slAtr
+    target1Level := close - atr * slAtr * targetR1
+    target2Level := close - atr * slAtr * targetR2
+    tradeSide := -1
+
+// ── Plots
+plot(showEMAs ? emaFast : na, "EMA 20", color=color.new(color.aqua, 0), linewidth=1)
+plot(showEMAs ? emaMid : na, "EMA 50", color=color.new(color.orange, 0), linewidth=1)
+plot(showEMAs ? emaSlow : na, "EMA 200", color=color.new(color.blue, 0), linewidth=2)
+plot(showVWAP ? vwapSession : na, "Session VWAP", color=color.new(color.fuchsia, 0), linewidth=2)
+plot(showSR ? resistance : na, "Latest swing resistance", color=color.new(color.red, 35), style=plot.style_stepline)
+plot(showSR ? support : na, "Latest swing support", color=color.new(color.lime, 35), style=plot.style_stepline)
+plot(descLineNow, "Descending pivot trendline", color=color.new(color.red, 65), style=plot.style_linebr)
+plot(ascLineNow, "Ascending pivot trendline", color=color.new(color.lime, 65), style=plot.style_linebr)
+
+plot(showTradeLevels ? entryLevel : na, "Signal entry", color=color.new(color.white, 0), style=plot.style_linebr, linewidth=2)
+plot(showTradeLevels ? stopLevel : na, "ATR stop", color=color.new(color.red, 0), style=plot.style_linebr, linewidth=2)
+plot(showTradeLevels ? target1Level : na, "Target 1", color=color.new(color.lime, 0), style=plot.style_linebr)
+plot(showTradeLevels ? target2Level : na, "Target 2", color=color.new(color.green, 0), style=plot.style_linebr)
+
+plotshape(bullSignal, title="OQ CE setup", style=shape.labelup, location=location.belowbar, color=color.new(color.lime, 0), text="OQ CE", textcolor=color.black, size=size.small)
+plotshape(bearSignal, title="OQ PE setup", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), text="OQ PE", textcolor=color.white, size=size.small)
+
+// Pressure proxy in data window only. It is NOT exchange bid/ask CVD.
+plot(showPressure ? sessionPressure : na, "Candle-volume pressure proxy (not true CVD)", color=color.new(color.teal, 0), display=display.data_window)
+
+// ── Dashboard
+var table dash = table.new(position.top_right, 2, 11, border_width=1)
+if barstate.islast and showDashboard
+    table.cell(dash, 0, 0, "OCTAQUANT X-RAY", text_color=color.white, bgcolor=color.rgb(20, 35, 52))
+    table.cell(dash, 1, 0, "LIVE SNAPSHOT", text_color=color.aqua, bgcolor=color.rgb(20, 35, 52))
+    table.cell(dash, 0, 1, "Regime")
+    regimeText = adx < minAdx ? "RANGE / WEAK" : trendBull ? "UPTREND" : trendBear ? "DOWNTREND" : "MIXED"
+    table.cell(dash, 1, 1, regimeText, text_color=trendBull ? color.lime : trendBear ? color.red : color.orange)
+    table.cell(dash, 0, 2, "15m bias")
+    table.cell(dash, 1, 2, htfBull ? "BULLISH" : htfBear ? "BEARISH" : "NEUTRAL")
+    table.cell(dash, 0, 3, "VWAP")
+    table.cell(dash, 1, 3, vwapBull ? "ABOVE" : "BELOW", text_color=vwapBull ? color.lime : color.red)
+    table.cell(dash, 0, 4, "Rel. volume")
+    table.cell(dash, 1, 4, na(relVol) ? "N/A" : str.tostring(relVol, "#.##") + "x")
+    table.cell(dash, 0, 5, "ADX")
+    table.cell(dash, 1, 5, str.tostring(adx, "#.0"))
+    table.cell(dash, 0, 6, "CE score")
+    table.cell(dash, 1, 6, str.tostring(bullScore) + "/100", text_color=bullScore >= minScore ? color.lime : color.gray)
+    table.cell(dash, 0, 7, "PE score")
+    table.cell(dash, 1, 7, str.tostring(bearScore) + "/100", text_color=bearScore >= minScore ? color.red : color.gray)
+    table.cell(dash, 0, 8, "ATR regime")
+    table.cell(dash, 1, 8, volatilityOK ? "OK" : "HIGH VOL · CAUTION")
+    table.cell(dash, 0, 9, "Trigger")
+    triggerText = bullTrigger ? "BULL SETUP" : bearTrigger ? "BEAR SETUP" : "WAIT"
+    table.cell(dash, 1, 9, triggerText)
+    table.cell(dash, 0, 10, "Decision")
+    decisionText = bullSignal ? "CE CONFIRMED" : bearSignal ? "PE CONFIRMED" : "NO TRADE / WAIT"
+    decisionColor = bullSignal ? color.lime : bearSignal ? color.red : color.orange
+    table.cell(dash, 1, 10, decisionText, text_color=decisionColor)
+
+// ── Alerts
+alertcondition(bullSignal, "OCTAQUANT CE confirmed", "OCTAQUANT X-RAY: Bullish setup confirmed on {{ticker}} {{interval}}. Check entry, stop and option-chain confirmation.")
+alertcondition(bearSignal, "OCTAQUANT PE confirmed", "OCTAQUANT X-RAY: Bearish setup confirmed on {{ticker}} {{interval}}. Check entry, stop and option-chain confirmation.")
+alertcondition(bullTrigger and not bullSignal, "OCTAQUANT bullish watch", "OCTAQUANT X-RAY: Bullish trigger detected but full confluence conditions are not met.")
+alertcondition(bearTrigger and not bearSignal, "OCTAQUANT bearish watch", "OCTAQUANT X-RAY: Bearish trigger detected but full confluence conditions are not met.")
