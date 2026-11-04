@@ -124,9 +124,9 @@ bullScore += (srBullBreak or srBullReject or tlBullBreak) ? 25 : 0
 bullScore += htfBull ? 15 : 0
 bullScore += localBull ? 10 : 0
 bullScore += vwapBull ? 10 : 0
-bullScore += (not na(relVol) and relVol >= minRelVol) ? 15 : 0
+bullScore += (not na(volume) and not na(volAvg) and volAvg > 0 and relVol >= minRelVol) ? 15 : 0
 bullScore += (adx >= minAdx and diPlus > diMinus) ? 10 : 0
-bullScore += (pressureUp and close > open) ? 10 : 0
+bullScore += (not na(volume) and pressureUp and close > open) ? 10 : 0
 bullScore += (majorBull) ? 5 : 0
 
 bearScore = 0
@@ -134,12 +134,16 @@ bearScore += (srBearBreak or srBearReject or tlBearBreak) ? 25 : 0
 bearScore += htfBear ? 15 : 0
 bearScore += localBear ? 10 : 0
 bearScore += vwapBear ? 10 : 0
-bearScore += (not na(relVol) and relVol >= minRelVol) ? 15 : 0
+bearScore += (not na(volume) and not na(volAvg) and volAvg > 0 and relVol >= minRelVol) ? 15 : 0
 bearScore += (adx >= minAdx and diMinus > diPlus) ? 10 : 0
-bearScore += (pressureDown and close < open) ? 10 : 0
+bearScore += (not na(volume) and pressureDown and close < open) ? 10 : 0
 bearScore += (majorBear) ? 5 : 0
 
-volOK = not na(relVol) and relVol >= minRelVol
+volAvailable = not na(volume) and not na(volAvg) and volAvg > 0
+volOK = not volAvailable or relVol >= minRelVol
+scoreAvailableMax = volAvailable ? 100 : 75
+bullScore := int(math.round(bullScore * 100.0 / scoreAvailableMax))
+bearScore := int(math.round(bearScore * 100.0 / scoreAvailableMax))
 volatilityOK = not na(atrPct) and atrPct <= maxAtrPct
 marketOpenEnough = not na(vwapSession)
 bullTrigger = srBullBreak or srBullReject or tlBullBreak
@@ -182,8 +186,17 @@ plot(showEMAs ? emaSlow : na, "EMA 200", color=color.new(color.blue, 0), linewid
 plot(showVWAP ? vwapSession : na, "Session VWAP", color=color.new(color.fuchsia, 0), linewidth=2)
 plot(showSR ? resistance : na, "Latest swing resistance", color=color.new(color.red, 35), style=plot.style_stepline)
 plot(showSR ? support : na, "Latest swing support", color=color.new(color.lime, 35), style=plot.style_stepline)
-plot(descLineNow, "Descending pivot trendline", color=color.new(color.red, 65), style=plot.style_linebr)
-plot(ascLineNow, "Ascending pivot trendline", color=color.new(color.lime, 65), style=plot.style_linebr)
+// Draw only latest confirmed pivot-to-pivot trendlines, extended right.
+var line descendingTrendLine = na
+var line ascendingTrendLine = na
+if not na(pivotHigh) and not na(ph1) and not na(phBar1)
+    if not na(descendingTrendLine)
+        line.delete(descendingTrendLine)
+    descendingTrendLine := line.new(int(phBar1), ph1, int(phBar0), ph0, xloc=xloc.bar_index, extend=extend.right, color=color.new(color.red, 15), width=2)
+if not na(pivotLow) and not na(pl1) and not na(plBar1)
+    if not na(ascendingTrendLine)
+        line.delete(ascendingTrendLine)
+    ascendingTrendLine := line.new(int(plBar1), pl1, int(plBar0), pl0, xloc=xloc.bar_index, extend=extend.right, color=color.new(color.lime, 15), width=2)
 
 plot(showTradeLevels ? entryLevel : na, "Signal entry", color=color.new(color.white, 0), style=plot.style_linebr, linewidth=2)
 plot(showTradeLevels ? stopLevel : na, "ATR stop", color=color.new(color.red, 0), style=plot.style_linebr, linewidth=2)
@@ -194,10 +207,10 @@ plotshape(bullSignal, title="OQ CE setup", style=shape.labelup, location=locatio
 plotshape(bearSignal, title="OQ PE setup", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), text="OQ PE", textcolor=color.white, size=size.small)
 
 // Pressure proxy in data window only. It is NOT exchange bid/ask CVD.
-plot(showPressure ? sessionPressure : na, "Candle-volume pressure proxy (not true CVD)", color=color.new(color.teal, 0), display=display.data_window)
+plot(showPressure and volAvailable ? sessionPressure : na, "Candle-volume pressure proxy (NOT true CVD)", color=sessionPressure >= 0 ? color.teal : color.red, style=plot.style_columns, display=display.pane)
 
 // ── Dashboard
-var table dash = table.new(position.top_right, 2, 11, border_width=1)
+var table dash = table.new(position.top_right, 2, 12, border_width=1)
 if barstate.islast and showDashboard
     table.cell(dash, 0, 0, "OCTAQUANT X-RAY", text_color=color.white, bgcolor=color.rgb(20, 35, 52))
     table.cell(dash, 1, 0, "LIVE SNAPSHOT", text_color=color.aqua, bgcolor=color.rgb(20, 35, 52))
@@ -221,10 +234,12 @@ if barstate.islast and showDashboard
     table.cell(dash, 0, 9, "Trigger")
     triggerText = bullTrigger ? "BULL SETUP" : bearTrigger ? "BEAR SETUP" : "WAIT"
     table.cell(dash, 1, 9, triggerText)
-    table.cell(dash, 0, 10, "Decision")
+    table.cell(dash, 0, 10, "Volume data")
+    table.cell(dash, 1, 10, volAvailable ? (str.tostring(relVol, "#.##") + "x") : "UNAVAILABLE · FILTER BYPASSED", text_color=volAvailable ? color.white : color.orange)
+    table.cell(dash, 0, 11, "Decision")
     decisionText = bullSignal ? "CE CONFIRMED" : bearSignal ? "PE CONFIRMED" : "NO TRADE / WAIT"
     decisionColor = bullSignal ? color.lime : bearSignal ? color.red : color.orange
-    table.cell(dash, 1, 10, decisionText, text_color=decisionColor)
+    table.cell(dash, 1, 11, decisionText, text_color=decisionColor)
 
 // ── Alerts
 alertcondition(bullSignal, "OCTAQUANT CE confirmed", "OCTAQUANT X-RAY: Bullish setup confirmed on {{ticker}} {{interval}}. Check entry, stop and option-chain confirmation.")
