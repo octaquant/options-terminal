@@ -3,7 +3,7 @@
 Free-first local Windows workspace for NIFTY and SENSEX options buyers.
 
 ## Run the main decision terminal
-1. Install Python 3.10+ and enable Add Python to PATH.
+1. Install **Python 3.12 x64** and enable Add Python to PATH. Avoid Python 3.14 for this connector because a dependency (aiohttp) may attempt a source build and require Microsoft C++ Build Tools.
 2. Download this repository (Code -> Download ZIP) and extract it.
 3. Double-click START_WINDOWS.bat.
 4. The app opens locally, usually at http://localhost:8501.
