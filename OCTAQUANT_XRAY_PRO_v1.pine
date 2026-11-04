@@ -56,9 +56,9 @@ volAvg = ta.sma(volume, volLen)
 relVol = volAvg > 0 ? volume / volAvg : na
 [diPlus, diMinus, adx] = ta.dmi(adxLen, adxSmooth)
 
-htfClose = request.security(syminfo.tickerid, confirmTf, close, barmerge.gaps_off, barmerge.lookahead_off)
-htfEmaFast = request.security(syminfo.tickerid, confirmTf, ta.ema(close, emaFastLen), barmerge.gaps_off, barmerge.lookahead_off)
-htfEmaMid = request.security(syminfo.tickerid, confirmTf, ta.ema(close, emaMidLen), barmerge.gaps_off, barmerge.lookahead_off)
+htfClose = request.security(syminfo.tickerid, confirmTf, close[1], barmerge.gaps_off, barmerge.lookahead_on)
+htfEmaFast = request.security(syminfo.tickerid, confirmTf, ta.ema(close, emaFastLen)[1], barmerge.gaps_off, barmerge.lookahead_on)
+htfEmaMid = request.security(syminfo.tickerid, confirmTf, ta.ema(close, emaMidLen)[1], barmerge.gaps_off, barmerge.lookahead_on)
 htfBull = htfClose > htfEmaFast and htfEmaFast > htfEmaMid
 htfBear = htfClose < htfEmaFast and htfEmaFast < htfEmaMid
 
