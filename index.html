@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Options Intelligence Terminal</title>
+<style>
+:root{color-scheme:dark;--bg:#080d13;--panel:#101923;--line:#243241;--gold:#d8b36a;--muted:#91a0af;--text:#e8eef4;--green:#36c995}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 10% 0%,#1b2a3b 0,#080d13 50%);color:var(--text);font:15px Inter,system-ui,Segoe UI,sans-serif;min-height:100vh}
+main{max-width:1100px;margin:auto;padding:7vh 24px}.top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);padding-bottom:22px}.brand{font-weight:850;letter-spacing:.12em;font-size:20px}.brand b{color:var(--gold)}.tag{color:var(--muted);font:11px ui-monospace,monospace;letter-spacing:.15em}
+.hero{padding:64px 0 34px}.hero h1{font-size:clamp(36px,6vw,64px);line-height:1.02;letter-spacing:-.055em;margin:0 0 18px}.hero h1 span{color:var(--gold)}.hero p{max-width:650px;color:var(--muted);line-height:1.7}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:14px;margin-top:30px}.card{background:linear-gradient(145deg,#121e2a,#0d151e);border:1px solid var(--line);border-radius:14px;padding:22px}.card h3{margin:0 0 10px;font-size:13px;letter-spacing:.12em}.card p{color:var(--muted);line-height:1.6;font-size:13px;margin:0}
+.notice{margin-top:22px;border:1px solid #665331;background:#211b11;border-radius:12px;padding:18px;color:#e8d4a8;line-height:1.65}.links{display:flex;flex-wrap:wrap;gap:12px;margin-top:24px}a{color:#111820;background:var(--gold);text-decoration:none;padding:12px 17px;border-radius:8px;font-weight:750}a.secondary{background:transparent;color:var(--text);border:1px solid var(--line)}
+footer{color:var(--muted);font:11px ui-monospace,monospace;border-top:1px solid var(--line);padding-top:18px;margin-top:54px}
+</style></head>
+<body><main>
+<header class="top"><div><div class="brand">◈ <b>OPTIONS</b> INTELLIGENCE</div><div class="tag">NIFTY · SENSEX / BUYER'S DECISION TERMINAL</div></div><div class="tag">FREE LOCAL BUILD</div></header>
+<section class="hero"><div class="tag">MARKET STRUCTURE · SETUP QUALITY · CAPITAL PROTECTION</div><h1>Trade less.<br><span>See more clearly.</span></h1><p>A focused decision workspace for NIFTY and SENSEX options buyers. Built around two setups only: Support &amp; Resistance, and Trendline Breakout.</p>
+<div class="links"><a href="https://github.com/octaquant/options-terminal">View source on GitHub ↗</a><a class="secondary" href="https://github.com/octaquant/options-terminal#readme">Local installation guide</a></div></section>
+<section class="grid">
+<div class="card"><h3>01 / MARKET DESK</h3><p>TradingView charts and a compact market-regime checklist for NIFTY and SENSEX.</p></div>
+<div class="card"><h3>02 / SETUP CHECK</h3><p>Breakout, rejection, candle-close, retest, volume and confirmation checklist.</p></div>
+<div class="card"><h3>03 / OPTION GREEKS</h3><p>Manual-input Black–Scholes estimates for Delta, Gamma, Theta and Vega.</p></div>
+<div class="card"><h3>04 / RISK JOURNAL</h3><p>Local SQLite journal, two-trade daily guard and planned-risk validation.</p></div>
+</section>
+<div class="notice"><strong>Data status: NOT CONNECTED.</strong><br>This page is a static project landing page, not the trading terminal. The Python/Streamlit application runs locally on your Windows laptop. No live NSE option-chain feed is claimed here. Never enter broker passwords, TOTP, API secret or access tokens on this page.</div>
+<footer>PLAN · WAIT · EXECUTE · PROTECT &nbsp; / &nbsp; NO AUTO-TRADING · NO FALSE LIVE DATA</footer>
+</main></body></html>
