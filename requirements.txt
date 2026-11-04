@@ -1,2 +1,7 @@
 streamlit>=1.36,<2.0
 pandas>=2.0,<3.0
+smartapi-python
+pyotp
+logzero
+websocket-client
+pycryptodome
